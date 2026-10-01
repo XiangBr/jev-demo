@@ -1,0 +1,22 @@
+# Configuração da demo Jev vs LLMs
+
+usd_brl: 5.50              # câmbio usado para mostrar custo em R$ (editável na UI)
+confidence_threshold: 0.7  # abaixo disso a linha é marcada como "revisar"
+leads_csv: data/leads_5000.csv
+gabarito_csv: data/gabarito.csv
+# o contexto de cada linha são as colunas marcadas na página (padrão: todas, menos o id)
+
+jev:
+  model: typesafe/jev-1.13
+  endpoint: systemone      # systemone (/api/v1/systemone) ou decisions (/api/alpha/decisions)
+  input_price_per_mtok: 0.042
+  concurrency: 40
+  rpm: 1100                # limite documentado: ~1.200 req/min
+
+llm:
+  # Slugs editáveis na UI. Confira os IDs atuais em https://openrouter.ai/models
+  frontier:
+    label: LLM frontier
+    slug: anthropic/claude-sonnet-4.6
+    concurrency: 20
+    rpm: 1000

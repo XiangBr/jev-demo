@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# execuções locais ficam fora; só os exemplos vão para o repositório
+runs/*
+!runs/exemplo-*.jsonl
+
+# planilhas suas que você colocar aqui para testar
+data/privado/

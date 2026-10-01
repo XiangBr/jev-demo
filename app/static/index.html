@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev vs LLM · decisões em planilha</title>
+<style>
+:root{
+  --bg:#080a0e; --panel:#10141a; --panel2:#151a22; --inset:#0b0e13; --line:#1e2530; --line2:#2b3442;
+  --text:#e9edf3; --muted:#8792a3; --dim:#5d6878;
+  --jev:#34e0a1; --llm_frontier:#a78bfa;
+  --hi:#34e0a1; --mid:#f5c451; --lo:#ff6b6b; --accent:#34e0a1;
+  --r:14px; --fs:15px; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;color:var(--text);font:var(--fs)/1.5 Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+body{background:
+  radial-gradient(1100px 520px at 8% -8%, #0f2a22 0%, transparent 60%),
+  radial-gradient(900px 520px at 100% -4%, #1c1638 0%, transparent 58%),
+  var(--bg);background-attachment:fixed}
+body.rec{--fs:18px}
+body.rec .setup{display:none}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{background:var(--inset);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:0;transition:border-color .15s, box-shadow .15s}
+textarea{width:100%;resize:none;min-height:46px;line-height:1.45;overflow:hidden}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(52,224,161,.12)}
+::placeholder{color:var(--dim)}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer;transition:border-color .15s, background .15s, transform .05s}
+button:hover:not(:disabled){border-color:var(--line2);background:#1a212b}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent}
+button.primary,button.danger{font-weight:700;font-size:1.05em;padding:12px 34px;border:0;letter-spacing:.01em}
+button.primary{background:linear-gradient(135deg,#34e0a1,#1fb884);color:#04140c;box-shadow:0 6px 22px -8px rgba(52,224,161,.6)}
+button.primary:hover:not(:disabled){background:linear-gradient(135deg,#4bf0b2,#27c993)}
+button.danger{background:linear-gradient(135deg,#ff7a7a,#f04d4d);color:#260808;box-shadow:0 6px 22px -8px rgba(255,107,107,.55)}
+button.danger:hover:not(:disabled){background:linear-gradient(135deg,#ff8f8f,#f45f5f)}
+button.icon{padding:6px 10px;color:var(--muted);background:transparent}
+button.icon:hover:not(:disabled){color:var(--lo)}
+a{color:var(--accent)}
+.wrap{max-width:1480px;margin:0 auto;padding:0 24px 90px}
+.spacer{flex:1}
+.hint{color:var(--muted);font-size:.86em}
+.num{font-variant-numeric:tabular-nums}
+
+header.top{display:flex;align-items:center;gap:14px;padding:22px 0 16px;flex-wrap:wrap}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--jev),var(--llm_frontier));display:grid;place-items:center;color:#06110c;font-weight:800;font-size:.95em}
+header.top h1{font-size:1.3em;margin:0;letter-spacing:-.015em;font-weight:700}
+header.top h1 span{color:var(--muted);font-weight:500;font-size:.72em;margin-left:8px}
+.vs{color:var(--dim);font-weight:500;margin:0 2px}
+.chip{font-size:.78em;padding:4px 11px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:rgba(255,255,255,.02)}
+.chip.ok{color:var(--hi);border-color:#1c5a43;background:rgba(52,224,161,.06)}
+.chip.warn{color:var(--mid);border-color:#5d4c1f;background:rgba(245,196,81,.06)}
+
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.018),transparent 60%),var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-bottom:14px;box-shadow:0 18px 40px -28px #000}
+.step{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.step .n{width:26px;height:26px;border-radius:8px;background:rgba(52,224,161,.12);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:.85em;flex:none}
+.step h2{margin:0;font-size:1.02em;font-weight:650;letter-spacing:-.005em}
+.step .sub{color:var(--muted);font-size:.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+details.panel>summary{cursor:pointer;list-style:none}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary .step{margin:0}
+details.panel>summary .step::after{content:"▾";color:var(--muted);margin-left:auto;transition:transform .15s}
+details.panel:not([open])>summary .step::after{transform:rotate(-90deg)}
+details.panel[open]>summary{margin-bottom:16px}
+
+/* segmented */
+.seg{display:inline-flex;background:var(--inset);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.seg button{background:transparent;border:0;border-radius:8px;padding:6px 14px;color:var(--muted);font-size:.93em;white-space:nowrap}
+.seg button:hover:not(:disabled){background:rgba(255,255,255,.04);color:var(--text)}
+.seg button.on{background:var(--accent);color:#04140c;font-weight:650}
+
+/* editor */
+.qcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px 12px;margin-bottom:12px;position:relative}
+.qcard::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);opacity:.7}
+.qtop{display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.qnum{width:24px;height:24px;border-radius:99px;background:var(--inset);border:1px solid var(--line2);display:grid;place-items:center;font-size:.8em;color:var(--muted);flex:none}
+.fl{display:block;font-size:.74em;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:2px 0 5px}
+.qcard textarea.q{font-size:1.05em;padding:10px 12px}
+.typehelp{color:var(--dim);font-size:.83em;margin:6px 2px 2px}
+.optgrid{margin-top:10px;display:grid;gap:6px}
+.optrow{display:grid;grid-template-columns:minmax(120px,190px) 1fr auto;gap:8px;align-items:center}
+.optrow.lv{grid-template-columns:64px 1fr auto auto auto}
+.optrow input{width:100%}
+.lvb{font-size:.78em;color:var(--muted);text-align:center;background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:6px 4px;line-height:1.15}
+.lvb b{display:block;color:var(--text);font-size:1.15em}
+.optrow button{padding:6px 10px}
+.addrow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.addrow button{font-size:.88em;padding:6px 12px;color:var(--muted);border-style:dashed;background:transparent}
+.addrow button:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+.qerr{color:var(--lo);font-size:.85em;margin-top:8px}
+.qerr:empty{display:none}
+.qhint{color:var(--mid);font-size:.83em;margin-top:8px}
+.qfoot{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.qactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.qactions .primary-ish{border-color:#1c5a43;color:var(--accent);background:rgba(52,224,161,.06)}
+
+/* run */
+.runbar{display:grid;grid-template-columns:1.1fr 1.4fr 1fr;gap:20px 28px;align-items:start}
+@media (max-width:1100px){.runbar{grid-template-columns:1fr}}
+.field .t{display:block;font-size:.74em;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+.mopt{display:flex;align-items:center;gap:10px;background:var(--inset);border:1px solid var(--line);border-radius:11px;padding:9px 12px;margin-bottom:8px}
+.mopt.off{opacity:.5}
+.mopt label{display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap}
+.mopt .dot{width:10px;height:10px;border-radius:50%}
+.mopt input[type=text]{flex:1;padding:6px 10px;font-size:.9em}
+.mopt .slug{color:var(--muted);font-size:.8em;font-family:ui-monospace,Consolas,monospace}
+.mini{display:flex;gap:10px}
+.mini>div{flex:1}
+.mini input{width:100%}
+.ctx{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.ctx span{font-size:.76em;padding:2px 9px;border-radius:99px;background:var(--inset);border:1px solid var(--line);color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.ctxnote{font-size:.83em;color:var(--muted);margin-top:8px}
+.runline{display:flex;gap:16px;align-items:center;margin-top:18px;flex-wrap:wrap}
+.runline label{color:var(--muted);font-size:.9em;display:flex;align-items:center;gap:6px}
+.est{color:var(--muted);font-size:.86em}
+.err{color:var(--lo);font-size:.9em}
+.histline{display:flex;gap:10px;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
+
+/* scoreboard */
+.sticky{position:sticky;top:0;z-index:20;padding:10px 0 8px;background:linear-gradient(var(--bg) 82%,transparent);backdrop-filter:blur(6px)}
+.board{display:grid;gap:14px;grid-template-columns:repeat(var(--nm,2),1fr)}
+.mcard{background:linear-gradient(180deg,color-mix(in srgb,var(--mc) 9%,transparent),transparent 65%),var(--panel);border:1px solid var(--line);border-top:3px solid var(--mc);border-radius:var(--r);padding:14px 18px 16px}
+.mcard .nm{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mcard .nm b{color:var(--mc);font-size:1.08em;letter-spacing:-.005em}
+.mcard .slug{color:var(--muted);font-size:.74em;font-family:ui-monospace,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcard .big{display:flex;gap:22px;align-items:baseline;margin:8px 0 6px;flex-wrap:wrap}
+.mcard .cnt{font-size:2em;font-weight:700;letter-spacing:-.02em}
+.mcard .cnt small{font-size:.45em;color:var(--muted);font-weight:500;letter-spacing:0}
+.mcard .cost{font-size:2em;font-weight:700;color:var(--mc);letter-spacing:-.02em}
+.bar{height:6px;background:#161c25;border-radius:9px;overflow:hidden;margin:4px 0 12px}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,color-mix(in srgb,var(--mc) 55%,#000),var(--mc));width:0;transition:width .2s;border-radius:9px}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:.82em}
+.kv div{background:var(--inset);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.kv span{display:block;color:var(--muted);font-size:.82em}
+.kv b{font-size:1.06em}
+.mcard.done{box-shadow:0 0 0 1px color-mix(in srgb,var(--mc) 55%,transparent) inset}
+.demo{background:rgba(245,196,81,.08);color:var(--mid);border:1px solid #6b4f10;border-radius:11px;padding:8px 14px;font-size:.86em;margin-bottom:10px;display:none}
+
+/* table */
+.tctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 8px}
+.tctl .info{color:var(--muted);font-size:.85em}
+.tctl label{color:var(--muted);font-size:.9em;display:flex;align-items:center;gap:6px}
+.grid{display:grid;grid-template-columns:minmax(320px,1.3fr) repeat(var(--nm,2),minmax(230px,1fr));gap:14px}
+.thead{padding:8px 16px;font-size:.76em;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);position:sticky;top:var(--boardh,160px);z-index:15;background:var(--bg);border-bottom:1px solid var(--line)}
+.thead b{color:var(--mc)}
+.thead small{display:block;text-transform:none;letter-spacing:0;color:var(--dim);font-family:ui-monospace,Consolas,monospace;font-size:.95em}
+.row.lead{background:linear-gradient(180deg,rgba(255,255,255,.015),transparent 50%),var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-top:10px;cursor:pointer;transition:border-color .15s}
+.row.lead:hover{border-color:var(--line2)}
+.row.lead.diverge{border-color:#7a5f1c;box-shadow:0 0 0 1px #7a5f1c inset,0 0 28px -14px var(--mid)}
+.lead .ltop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.lead .idx{font-size:.74em;font-weight:700;color:var(--accent);background:rgba(52,224,161,.1);padding:2px 8px;border-radius:99px}
+.lead .lid{font-family:ui-monospace,Consolas,monospace;color:var(--dim);font-size:.78em}
+.lead .who{font-weight:650;font-size:1.06em;letter-spacing:-.005em}
+.lead .who small{color:var(--muted);font-weight:400;font-size:.88em}
+.lead .cargo{display:inline-block;margin-top:3px;font-size:.8em;color:var(--text);background:var(--inset);border:1px solid var(--line);border-radius:99px;padding:1px 10px}
+.lead .msg{font-size:1.02em;line-height:1.55;white-space:pre-wrap;word-break:break-word;background:var(--inset);border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:10px;padding:10px 13px;margin-top:9px}
+.lead .msg.empty{color:var(--dim);font-style:italic}
+.meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.meta span{font-size:.74em;color:var(--muted);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;padding:2px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta span i{font-style:normal;color:var(--dim);margin-right:4px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:.72em;padding:2px 9px;border-radius:99px;background:rgba(245,196,81,.09);color:var(--mid);border:1px solid #6b4f10}
+.tag.rev{background:rgba(255,107,107,.09);color:var(--lo);border-color:#6b2020}
+.mcol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.pill{position:relative;background:var(--inset);border:1px solid var(--line);border-radius:11px;padding:8px 12px 10px;overflow:hidden}
+.pill::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
+.pill .pq{font-size:.76em;color:var(--muted);line-height:1.3;margin-bottom:3px;padding-right:2px}
+.pill .pr{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.pill .qv{font-weight:700;font-size:1.12em;letter-spacing:-.005em;word-break:break-word}
+.pill .qc{font-size:.86em;color:var(--c);font-weight:650;flex:none}
+.pill .qs{font-size:.76em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pill .cb{position:absolute;left:0;bottom:0;height:2px;background:var(--c);opacity:.85}
+.pill.hi{--c:var(--hi)}.pill.mid{--c:var(--mid)}.pill.lo{--c:var(--lo)}
+.pill.diff{border-color:#7a5f1c;background:linear-gradient(90deg,rgba(245,196,81,.07),transparent 70%),var(--inset)}
+.pill.diff .qv::after{content:" ≠";color:var(--mid)}
+.pill.wait{--c:#2b3442;color:var(--muted);display:flex;align-items:center;gap:10px;padding:14px 12px}
+.spin{width:13px;height:13px;border:2px solid #2b3442;border-top-color:var(--mc);border-radius:50%;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.mfoot{font-size:.78em;color:var(--muted);display:flex;gap:6px 12px;flex-wrap:wrap;font-variant-numeric:tabular-nums;padding:2px 4px 0}
+.mfoot b{color:var(--text);font-weight:650}
+.mfoot .free{color:var(--jev)}
+.mfoot .t{color:var(--mc)}
+.errtxt{color:var(--lo);font-size:.85em;background:rgba(255,107,107,.08);border:1px solid #6b2020;border-radius:10px;padding:8px 12px}
+.rawbox{grid-column:1/-1;margin-top:4px;background:var(--inset);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,Consolas,monospace;font-size:.78em;white-space:pre-wrap;word-break:break-all;color:#b7c0cc;max-height:340px;overflow:auto}
+
+/* final */
+.final{display:none}
+.final h2{margin:0 0 14px;font-size:1.05em}
+.final table{width:100%;border-collapse:collapse;font-size:.92em}
+.final th,.final td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.final th{color:var(--muted);font-weight:500;font-size:.76em;text-transform:uppercase;letter-spacing:.08em}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:18px}
+.cmp>div{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.cmp h3{font-size:.76em;margin:0 0 8px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.hb{display:flex;align-items:center;gap:10px;margin:7px 0}
+.hb .lab{width:100px;font-size:.85em;color:var(--mc);flex:none}
+.hb .trk{flex:1;background:#161c25;border-radius:7px;height:18px;overflow:hidden}
+.hb .trk i{display:block;height:100%;background:linear-gradient(90deg,color-mix(in srgb,var(--mc) 55%,#000),var(--mc));min-width:2px;border-radius:7px}
+.hb .val{width:110px;text-align:right;font-variant-numeric:tabular-nums;font-size:.9em;flex:none}
+.hybrid{background:linear-gradient(135deg,rgba(52,224,161,.08),rgba(167,139,250,.06));border:1px solid #1c5a43;border-radius:12px;padding:14px 16px;margin-top:16px}
+.hybrid h3{color:var(--hi);margin:0 0 6px;font-size:.98em}
+body.rec .mcard .cnt,body.rec .mcard .cost{font-size:2.5em}
+
+/* dados */
+.dsbar{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:14px 20px;align-items:stretch;margin-bottom:16px}
+@media (max-width:900px){.dsbar{grid-template-columns:1fr}}
+.drop{display:flex;flex-direction:column;justify-content:center;gap:4px;border:1.5px dashed var(--line2);border-radius:12px;padding:16px 18px;cursor:pointer;background:var(--inset);transition:border-color .15s, background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:rgba(52,224,161,.05)}
+.drop b{color:var(--accent);font-size:1.02em}
+.drop span{color:var(--muted);font-size:.84em}
+.drop span.err{color:var(--lo)}
+.drop.busy{opacity:.6;pointer-events:none}
+.dsel select{width:100%}
+.colhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.colhead .t{font-size:.74em;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.colhead button{font-size:.8em;padding:3px 10px}
+.cols{display:flex;flex-wrap:wrap;gap:6px}
+.cols button{font-size:.84em;padding:4px 12px;border-radius:99px;font-family:ui-monospace,Consolas,monospace;color:var(--muted);background:transparent}
+.cols button.on{color:#04140c;background:var(--accent);border-color:var(--accent);font-weight:650}
+.cols button.on:hover:not(:disabled){background:#4bf0b2}
+.cols button.fixed{opacity:.45;cursor:default}
+.pv{margin-top:14px;overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:260px}
+.pv table{border-collapse:collapse;font-size:.8em;min-width:100%}
+.pv th,.pv td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-weight:600;font-family:ui-monospace,Consolas,monospace}
+.pv .off{color:var(--dim);opacity:.55}
+.pv th.on{color:var(--accent)}
+.qwarn{background:rgba(245,196,81,.08);color:var(--mid);border:1px solid #6b4f10;border-radius:10px;padding:8px 12px;font-size:.86em;margin-bottom:12px}
+.qwarn:empty{display:none}
+.keyrow{display:flex;gap:6px}
+.keyrow input{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:.88em}
+.keyrow button{padding:6px 10px;font-size:.86em}
+.keyok{color:var(--hi)}.keybad{color:var(--lo)}
+.lead .fl2{display:block;font-size:.7em;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:9px 0 -5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="logo">J</div>
+    <h1>Jev <span class="vs">vs</span> LLM<span>decisões sobre a sua planilha, lado a lado</span></h1>
+    <span class="chip" id="chipLeads">…</span>
+    <span class="chip" id="chipKey">…</span>
+    <span class="spacer"></span>
+    <button class="ghost" id="btnRec">Modo gravação</button>
+  </header>
+
+  <details class="panel setup" id="dataPanel" open>
+    <summary><div class="step"><span class="n">1</span><h2>Dados</h2><span class="sub" id="dsum"></span></div></summary>
+    <div class="dsbar">
+      <label class="drop" id="drop">
+        <input type="file" id="fFile" accept=".csv,.tsv,.txt,.xlsx,.xlsm" hidden>
+        <b>Subir CSV ou Excel</b>
+        <span>Arraste o arquivo aqui ou clique. Primeira linha é o cabeçalho; no Excel, vale a primeira aba.</span>
+        <span id="upErr" class="err"></span>
+      </label>
+      <div class="field dsel">
+        <span class="t">Planilha em uso</span>
+        <select id="dsSel"></select>
+        <div class="ctxnote" id="dsInfo"></div>
+      </div>
+    </div>
+    <div class="colhead"><span class="t">Colunas que vão para o contexto</span>
+      <button class="ghost" id="colAll">todas</button><button class="ghost" id="colNone">nenhuma</button></div>
+    <div class="cols" id="cols"></div>
+    <div class="ctxnote">Mande só o que as perguntas precisam. Segundo a documentação do Jev, a acurácia cai quando o contexto tem coisa que não tem a ver com a decisão, e toda coluna vira token cobrado.</div>
+    <div class="pv" id="pv"></div>
+  </details>
+
+  <details class="panel setup" id="editorPanel" open>
+    <summary><div class="step"><span class="n">2</span><h2>Perguntas</h2><span class="sub" id="qsum"></span></div></summary>
+    <div class="qwarn" id="qWarn"></div>
+    <div id="qlist"></div>
+    <div class="qactions">
+      <button id="qAdd" class="primary-ish">+ Nova pergunta</button>
+      <button id="qPreset" class="ghost">Carregar perguntas do exemplo (leads)</button>
+      <button id="qClear" class="ghost">Limpar tudo</button>
+    </div>
+  </details>
+
+  <div class="panel setup" id="runPanel">
+    <div class="step"><span class="n">3</span><h2>Execução</h2></div>
+    <div class="runbar">
+      <div class="field">
+        <span class="t">Quantas linhas (amostra aleatória, seed fixa)</span>
+        <div class="seg" id="fN"></div>
+        <div class="mini" style="margin-top:16px">
+          <div><span class="t">Confiança mínima</span><input type="number" id="fThr" min="0" max="1" step="0.05"></div>
+          <div><span class="t">Câmbio US$→R$</span><input type="number" id="fFx" min="0.5" step="0.05"></div>
+        </div>
+      </div>
+      <div class="field">
+        <span class="t">Modelos</span>
+        <div class="mopt" id="moJev"><label><input type="checkbox" id="mJev" checked><span class="dot" style="background:var(--jev)"></span><b>Jev</b></label><span class="slug" id="jevSlug"></span></div>
+        <div class="mopt" id="moFront"><label><input type="checkbox" id="mFront" checked><span class="dot" style="background:var(--llm_frontier)"></span><b>LLM frontier</b></label><input type="text" id="sFront" list="slugs" placeholder="slug no OpenRouter"></div>
+        <datalist id="slugs"></datalist>
+      </div>
+      <div class="field">
+        <span class="t">Chave OpenRouter</span>
+        <div class="keyrow">
+          <input type="password" id="fKey" placeholder="sk-or-..." autocomplete="off" spellcheck="false">
+          <button class="ghost" id="btnKeyShow" title="Mostrar/ocultar">mostrar</button>
+          <button id="btnKeyTest">testar</button>
+        </div>
+        <div class="ctxnote" id="keyNote"></div>
+        <div class="ctxnote" id="keyRes"></div>
+      </div>
+    </div>
+    <div class="runline">
+      <button class="primary" id="btnRun">Rodar</button>
+      <label><input type="checkbox" id="fMock"> Simulado (sem gastar; números NÃO são reais)</label>
+      <span class="est" id="est"></span>
+      <span class="err" id="runErr"></span>
+    </div>
+    <div class="histline">
+      <span class="hint">Execuções salvas</span>
+      <select id="hist" style="min-width:250px"></select>
+      <select id="rpSpeed"><option value="1">1x</option><option value="5">5x</option><option value="20" selected>20x</option><option value="50">50x</option></select>
+      <button id="btnReplay">Replay</button>
+      <a id="lnkCsv" href="#" class="hint">baixar CSV</a>
+    </div>
+  </div>
+
+  <div class="demo" id="demoBanner">SIMULADO · latências, custos e respostas são inventados para ensaio da interface. Não use estes números.</div>
+
+  <div class="sticky" id="stickyBoard">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="tctl" id="tctl" style="display:none">
+    <div class="seg">
+      <button id="btnFollow" class="on">Seguir novos</button><button id="btnFreeze">Congelar</button>
+    </div>
+    <button id="btnPrev" class="ghost" title="Linhas mais antigas">‹ antigas</button>
+    <button id="btnNext" class="ghost" title="Linhas mais novas">novas ›</button>
+    <label><input type="checkbox" id="fDiv"> só divergentes</label>
+    <label><input type="checkbox" id="fLow"> só baixa confiança</label>
+    <span class="info" id="tinfo"></span>
+    <span class="spacer"></span>
+    <span class="hint">clique numa linha para ver a resposta bruta</span>
+  </div>
+  <div class="thead grid" id="thead" style="display:none"></div>
+  <div id="rows"></div>
+
+  <div class="panel final" id="final"></div>
+</div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const MCOL = { jev: "var(--jev)", llm_frontier: "var(--llm_frontier)" };
+const WINDOW = 100;
+const LS_Q = "jev-demo-questions-v2";
+const LS_DS = "jev-demo-dataset";
+const LS_FIELDS = "jev-demo-fields:";
+const SS_KEY = "jev-demo-openrouter-key";
+const N_OPTS = [5, 20, 50, 200, 500, 2000, 5000];
+const store = {  // storage pode estar bloqueado; nada aqui é essencial
+  get(s, k) { try { return s.getItem(k); } catch (e) { return null; } },
+  set(s, k, v) { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch (e) {} },
+};
+
+const S = {
+  cfg: null, qs: [], es: null, runId: null, running: false, nSel: 50, ds: null, datasets: [], fields: [], ctxFields: [],
+  models: [], questions: [], n: 0, threshold: .7, fx: 5.5, mock: false,
+  leads: new Map(), order: [], results: {}, stats: {}, tNow: 0, finished: false,
+  follow: true, frozenEnd: 0, fDiv: false, fLow: false, expanded: new Set(), summary: null,
+};
+
+/* ---------- formatação ---------- */
+const nf = (v, d = 0) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+function money(usd, fx = S.fx) {
+  const v = usd * fx;
+  if (v === 0) return "R$ 0,00";
+  if (v < 0.01) return "R$ " + nf(v, 5);
+  if (v < 1) return "R$ " + nf(v, 4);
+  return "R$ " + nf(v, 2);
+}
+const ms = v => v == null ? "–" : v < 1000 ? nf(v, 0) + " ms" : nf(v / 1000, 2) + " s";
+const clock = s => { s = Math.max(0, s); const m = Math.floor(s / 60); return String(m).padStart(2, "0") + ":" + nf(s % 60, 1).padStart(4, "0"); };
+const qLabel = q => q.label || q.instructions;
+
+/* ---------- editor de perguntas ---------- */
+const newQ = () => ({ type: "noul", question: "", extra: "", showExtra: false, options: [{ key: "", desc: "" }, { key: "", desc: "" }], levels: ["", ""] });
+function fromPreset(p) {
+  const q = newQ();
+  q.type = p.type; q.question = p.instructions;
+  if (p.options && p.options.length) q.options = p.options.map(o => ({ key: o.key, desc: o.desc || "" }));
+  if (p.levels && p.levels.length) q.levels = [...p.levels];
+  return q;
+}
+function loadQs() {
+  try { const v = JSON.parse(store.get(localStorage, LS_Q)); if (Array.isArray(v) && v.length) return v; } catch (e) {}
+  return S.cfg.preset.map(fromPreset);
+}
+function saveQs() { store.set(localStorage, LS_Q, JSON.stringify(S.qs)); updateQWarn(); }
+function ensureShape(q) {
+  while (q.options.length < 2) q.options.push({ key: "", desc: "" });
+  while (q.levels.length < 2) q.levels.push("");
+}
+
+const VAGUE = /(provável|parece|intenção|potencial|interesse em comprar|qualidade do lead)/i;
+function validateQs(qs) {
+  const errs = qs.map(() => []);
+  if (!qs.length) return { errs, global: "Adicione ao menos uma pergunta." };
+  qs.forEach((q, i) => {
+    if ((q.question || "").trim().length < 5) errs[i].push("Escreva a pergunta.");
+    if (q.type === "choice") {
+      const keys = q.options.map(o => o.key.trim());
+      if (keys.length < 2 || keys.some(k => !k)) errs[i].push("Escolha precisa de 2+ opções, todas com nome.");
+      else if (new Set(keys).size !== keys.length) errs[i].push("Opções repetidas.");
+    }
+    if (q.type === "score" && (q.levels.length < 2 || q.levels.some(l => !l.trim()))) errs[i].push("Nota precisa de 2+ níveis, todos com descrição.");
+  });
+  return { errs, global: null };
+}
+const TYPE_LBL = { noul: "Sim/Não", choice: "Escolha", score: "Nota" };
+const TYPE_HELP = {
+  noul: "O modelo devolve a chance de a resposta ser \"sim\". Ex.: A mensagem pede orçamento?",
+  choice: "O modelo escolhe uma das opções abaixo. Descreva cada uma para ele diferenciar.",
+  score: "O modelo dá uma nota entre os níveis abaixo, do menor para o maior. Dê um exemplo concreto por nível.",
+};
+function renderEditor() {
+  const { errs } = validateQs(S.qs);
+  $("#qlist").innerHTML = S.qs.map((q, i) => {
+    let body = "";
+    if (q.type === "choice") {
+      body = `<div class="optgrid">` + q.options.map((o, j) => `<div class="optrow"><input data-i="${i}" data-j="${j}" data-f="okey" placeholder="opção" value="${esc(o.key)}"><input data-i="${i}" data-j="${j}" data-f="odesc" placeholder="descrição curta (ajuda o modelo)" value="${esc(o.desc)}"><button class="icon" data-act="rmopt" data-i="${i}" data-j="${j}" title="Remover opção">✕</button></div>`).join("")
+        + `</div><div class="addrow"><button data-act="addopt" data-i="${i}">+ opção</button></div>`;
+    } else if (q.type === "score") {
+      const n = q.levels.length;
+      body = `<div class="optgrid">` + q.levels.map((l, j) => `<div class="optrow lv"><div class="lvb"><b>${j + 1}</b>${j === 0 ? "menor" : j === n - 1 ? "maior" : "&nbsp;"}</div><input data-i="${i}" data-j="${j}" data-f="lvl" placeholder="o que significa este nível" value="${esc(l)}"><button class="icon" data-act="lvlup" data-i="${i}" data-j="${j}" ${j === 0 ? "disabled" : ""} title="Subir">↑</button><button class="icon" data-act="lvldn" data-i="${i}" data-j="${j}" ${j === n - 1 ? "disabled" : ""} title="Descer">↓</button><button class="icon" data-act="rmlvl" data-i="${i}" data-j="${j}" title="Remover nível">✕</button></div>`).join("")
+        + `</div><div class="addrow"><button data-act="addlvl" data-i="${i}">+ nível</button></div>`;
+    }
+    const extra = (q.extra || q.showExtra)
+      ? `<span class="fl" style="margin-top:12px">Instruções extras (opcional)</span><textarea data-i="${i}" data-f="extra" rows="1" placeholder="Ex.: Ignore assinaturas de e-mail. Considere só o que o lead escreveu.">${esc(q.extra)}</textarea>`
+      : `<div class="addrow"><button data-act="showextra" data-i="${i}">+ instruções extras</button></div>`;
+    const hint = VAGUE.test(q.question) ? `<div class="qhint">Dica: pergunta literal funciona melhor. Pergunte o que está escrito, não o que você acha que a pessoa quer.</div>` : "";
+    return `<div class="qcard"><div class="qtop"><span class="qnum">${i + 1}</span>
+      <div class="seg">${Object.entries(TYPE_LBL).map(([k, v]) => `<button data-act="type" data-v="${k}" data-i="${i}" class="${q.type === k ? "on" : ""}">${v}</button>`).join("")}</div>
+      <span class="spacer"></span><button class="icon" data-act="rmq" data-i="${i}">✕ remover pergunta</button></div>
+      <span class="fl">Pergunta</span>
+      <textarea class="q" data-i="${i}" data-f="q" rows="1" placeholder="Ex.: A mensagem menciona um prazo?">${esc(q.question)}</textarea>
+      <div class="typehelp">${TYPE_HELP[q.type]}</div>
+      ${body}${extra}${hint}<div class="qerr" data-errs="${i}">${errs[i].map(esc).join(" ")}</div></div>`;
+  }).join("");
+  autosizeAll();
+  updateSum(); updateRunState();
+}
+function autosize(el) { el.style.height = "auto"; el.style.height = (el.scrollHeight + 2) + "px"; }
+function autosizeAll() { document.querySelectorAll("#qlist textarea").forEach(autosize); }
+function updateSum() { $("#qsum").textContent = S.qs.map(q => (q.question || "?").trim()).join("  ·  "); }
+function updateErrs() {
+  const { errs } = validateQs(S.qs);
+  document.querySelectorAll("[data-errs]").forEach(el => el.textContent = errs[+el.dataset.errs].join(" "));
+  updateSum(); updateRunState();
+}
+$("#qlist").addEventListener("input", e => {
+  const t = e.target, i = +t.dataset.i, j = +t.dataset.j, f = t.dataset.f, q = S.qs[i];
+  if (!q) return;
+  if (f === "q") q.question = t.value;
+  else if (f === "extra") q.extra = t.value;
+  else if (f === "okey") q.options[j].key = t.value;
+  else if (f === "odesc") q.options[j].desc = t.value;
+  else if (f === "lvl") q.levels[j] = t.value;
+  if (t.tagName === "TEXTAREA") autosize(t);
+  saveQs(); updateErrs(); scheduleEstimate();
+});
+$("#qlist").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const i = +b.dataset.i, j = +b.dataset.j, q = S.qs[i], a = b.dataset.act;
+  if (a === "rmq") S.qs.splice(i, 1);
+  else if (a === "type") { q.type = b.dataset.v; ensureShape(q); }
+  else if (a === "showextra") q.showExtra = true;
+  else if (a === "addopt") q.options.push({ key: "", desc: "" });
+  else if (a === "rmopt") q.options.splice(j, 1);
+  else if (a === "addlvl") q.levels.push("");
+  else if (a === "rmlvl") q.levels.splice(j, 1);
+  else if (a === "lvlup") [q.levels[j - 1], q.levels[j]] = [q.levels[j], q.levels[j - 1]];
+  else if (a === "lvldn") [q.levels[j + 1], q.levels[j]] = [q.levels[j], q.levels[j + 1]];
+  saveQs(); renderEditor(); scheduleEstimate();
+  if (a === "showextra") document.querySelector(`#qlist textarea[data-i="${i}"][data-f="extra"]`)?.focus();
+});
+$("#qAdd").onclick = () => {
+  S.qs.push(newQ()); saveQs(); renderEditor();
+  const t = document.querySelectorAll("#qlist textarea.q"); t[t.length - 1]?.focus();
+};
+$("#qPreset").onclick = () => { S.qs = S.cfg.preset.map(fromPreset); saveQs(); renderEditor(); scheduleEstimate(); };
+$("#qClear").onclick = () => { S.qs = []; saveQs(); renderEditor(); };
+
+// Nome interno só é enviado quando a pergunta é idêntica a uma do preset (para medir contra o gabarito).
+function presetName(q) {
+  if (q.extra.trim()) return "";
+  const p = S.cfg.preset.find(p => p.type === q.type && p.instructions === q.question.trim());
+  return p ? p.name : "";
+}
+function cleanQs() {
+  return S.qs.map(q => ({
+    name: presetName(q), label: q.question.trim(), type: q.type,
+    instructions: q.question.trim() + (q.extra.trim() ? "\n" + q.extra.trim() : ""),
+    options: q.type === "choice" ? q.options.map(o => ({ key: o.key.trim(), desc: o.desc.trim() })) : [],
+    levels: q.type === "score" ? q.levels.map(l => l.trim()) : [],
+  }));
+}
+
+/* ---------- barra de execução ---------- */
+function selectedModels() {
+  const m = [];
+  if ($("#mJev").checked) m.push({ key: "jev" });
+  if ($("#mFront").checked) m.push({ key: "llm_frontier", slug: $("#sFront").value.trim() });
+  return m;
+}
+function runBody(withKey = false) {
+  const b = { questions: cleanQs(), models: selectedModels(), n: S.nSel, threshold: +$("#fThr").value,
+    usd_brl: +$("#fFx").value, mock: $("#fMock").checked, dataset: S.ds ? S.ds.id : "exemplo", state_fields: S.fields };
+  if (withKey && typeKey()) b.api_key = typeKey();
+  return b;
+}
+const typeKey = () => $("#fKey").value.trim();
+function updateRunState() {
+  const { errs, global } = validateQs(S.qs);
+  const bad = global || errs.some(e => e.length) || !selectedModels().length || !S.fields.length || !S.ds;
+  const btn = $("#btnRun");
+  if (!S.running) { btn.disabled = !!bad; btn.textContent = "Rodar"; btn.className = "primary"; }
+  $("#moJev").classList.toggle("off", !$("#mJev").checked);
+  $("#moFront").classList.toggle("off", !$("#mFront").checked);
+  $("#runErr").textContent = global || (bad && !S.running ? (errs.some(e => e.length) ? "Corrija as perguntas acima." : !S.ds ? "Suba uma planilha." : !S.fields.length ? "Escolha ao menos uma coluna para o contexto." : "Selecione um modelo.") : "");
+}
+let estTimer;
+function scheduleEstimate() { clearTimeout(estTimer); estTimer = setTimeout(estimate, 500); }
+async function estimate() {
+  const { errs } = validateQs(S.qs);
+  const el = $("#est");
+  if ($("#fMock").checked || errs.some(e => e.length) || !S.qs.length || !selectedModels().length || !S.fields.length || !S.ds) { el.textContent = ""; return; }
+  try {
+    const r = await fetch("/api/estimate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(runBody()) });
+    if (!r.ok) { el.textContent = ""; return; }
+    const d = await r.json(), fx = +$("#fFx").value || 5.5, parts = [];
+    const lbl = { jev: "Jev", llm_frontier: "frontier" };
+    for (const [k, v] of Object.entries(d.per_model)) parts.push(`${lbl[k]} ${v.per_lead_usd == null ? "?" : money(v.per_lead_usd * d.n, fx)}`);
+    el.textContent = `custo estimado para ${nf(d.n)} linhas: ` + parts.join(" · ") + " (aprox.; LLMs que raciocinam custam mais)";
+  } catch (e) { el.textContent = ""; }
+}
+["mJev", "mFront", "sFront", "fFx", "fMock"].forEach(id => $("#" + id).addEventListener("change", () => { updateRunState(); scheduleEstimate(); }));
+$("#fN").addEventListener("click", e => {
+  const b = e.target.closest("button[data-n]"); if (!b) return;
+  S.nSel = +b.dataset.n; renderN(); scheduleEstimate();
+});
+function renderN() {
+  const total = S.ds ? S.ds.n_rows : 0;
+  const opts = N_OPTS.filter(n => n < total);
+  if (!opts.includes(S.nSel) && S.nSel !== total) S.nSel = opts.includes(50) ? 50 : total;
+  $("#fN").innerHTML = opts.map(n => `<button data-n="${n}" class="${n === S.nSel ? "on" : ""}">${nf(n)}</button>`).join("")
+    + `<button data-n="${total}" class="${S.nSel === total ? "on" : ""}">todas (${nf(total)})</button>`;
+}
+
+$("#btnRun").onclick = async () => {
+  if (S.running) { fetch(`/api/runs/${S.runId}/stop`, { method: "POST" }); $("#btnRun").disabled = true; return; }
+  $("#runErr").textContent = "";
+  const r = await fetch("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(runBody(true)) });
+  if (!r.ok) { const e = await r.json().catch(() => ({})); $("#runErr").textContent = typeof e.detail === "string" ? e.detail : "Erro ao iniciar."; return; }
+  const { run_id } = await r.json();
+  connect(`/api/runs/${run_id}/events`, run_id);
+};
+$("#btnReplay").onclick = () => {
+  const id = $("#hist").value; if (!id) return;
+  connect(`/api/runs/${id}/events?replay=true&speed=${$("#rpSpeed").value}`, id);
+};
+$("#hist").addEventListener("change", () => { $("#lnkCsv").href = `/api/runs/${$("#hist").value}/export.csv`; });
+async function loadHist(select) {
+  const list = await (await fetch("/api/runs")).json();
+  $("#hist").innerHTML = list.map(r => `<option value="${esc(r.id)}">${esc(r.id)} · ${r.n} linhas${r.dataset ? " · " + esc(r.dataset) : ""}${r.mock ? " · simulado" : ""}</option>`).join("");
+  if (select) $("#hist").value = select;
+  $("#lnkCsv").href = $("#hist").value ? `/api/runs/${$("#hist").value}/export.csv` : "#";
+}
+
+/* ---------- stream de eventos ---------- */
+function connect(url, runId) {
+  if (S.es) S.es.close();
+  const es = new EventSource(url);
+  S.es = es; S.runId = runId;
+  es.onmessage = m => handle(JSON.parse(m.data));
+  es.onerror = () => { es.close(); if (S.running && !S.finished) { S.running = false; updateRunState(); } };
+}
+function resetRun(ev) {
+  Object.assign(S, {
+    models: ev.models, questions: ev.questions, n: ev.n, threshold: ev.threshold, fx: ev.usd_brl, mock: ev.mock,
+    ctxFields: ev.state_fields || [],
+    leads: new Map(), order: [], results: {}, stats: {}, tNow: 0, finished: false, running: true,
+    follow: true, frozenEnd: 0, expanded: new Set(), summary: null, gab: ev.gabarito || [],
+  });
+  ev.models.forEach(m => {
+    S.results[m.key] = new Map();
+    S.stats[m.key] = { done: 0, err: 0, cost: 0, out: 0, lat: [], finished: false, elapsed: 0, lastT: 0 };
+  });
+  $("#final").style.display = "none";
+  $("#rows").innerHTML = ""; rowEls.clear();
+  $("#demoBanner").style.display = ev.mock ? "block" : "none";
+  document.documentElement.style.setProperty("--nm", ev.models.length);
+  $("#thead").innerHTML = `<div>Linha <small>só as colunas enviadas ao modelo</small></div>` + ev.models.map(m => `<div style="--mc:${MCOL[m.key]}"><b>${esc(m.label)}</b><small>${esc(m.slug)}</small></div>`).join("");
+  $("#thead").style.display = "grid"; $("#tctl").style.display = "flex";
+  $("#board").innerHTML = ev.models.map(m => `<div class="mcard" id="mc-${m.key}" style="--mc:${MCOL[m.key]}">
+    <div class="nm"><b>${esc(m.label)}</b><span class="slug">${esc(m.slug)}</span></div>
+    <div class="big"><span class="cnt num" data-k="cnt"></span><span class="cost num" data-k="cost"></span></div>
+    <div class="bar"><i data-k="bar"></i></div>
+    <div class="kv"><div><span>tempo</span><b class="num" data-k="time">00:00,0</b></div><div><span>leads/s</span><b class="num" data-k="tput">–</b></div>
+    <div><span>p50 / lead</span><b class="num" data-k="p50">–</b></div><div><span>tokens saída (cobrados)</span><b class="num" data-k="out">0</b></div></div></div>`).join("");
+  $("#editorPanel").open = false; $("#dataPanel").open = false;
+  const btn = $("#btnRun"); btn.textContent = "Parar"; btn.className = "danger"; btn.disabled = false;
+  setFollow(true); updateBoardH(); scheduleFlush();
+}
+function handle(ev) {
+  S.tNow = ev.t;
+  switch (ev.type) {
+    case "run_started": resetRun(ev); break;
+    case "lead_started":
+      S.leads.set(ev.lead.id, ev.lead); S.order.push(ev.lead.id); markDirty(ev.lead.id); break;
+    case "lead_result": {
+      const st = S.stats[ev.model]; if (!st) break;
+      S.results[ev.model].set(ev.lead_id, ev);
+      st.done++; st.lastT = ev.t;
+      if (ev.error) st.err++; else { st.cost += ev.cost_usd; st.out += ev.billed_out_tokens; st.lat.push(ev.latency_ms); }
+      markDirty(ev.lead_id); break;
+    }
+    case "model_finished": S.stats[ev.model].finished = true; S.stats[ev.model].elapsed = ev.elapsed_s; break;
+    case "run_finished":
+      S.finished = true; S.running = false; S.summary = ev.summary;
+      if (S.es) S.es.close();
+      renderFinal(ev); updateRunState(); loadHist(S.runId); break;
+  }
+  scheduleFlush();
+}
+
+/* ---------- placar ---------- */
+function p50(a) { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor((s.length - 1) / 2)]; }
+function renderBoard() {
+  S.models.forEach(m => {
+    const st = S.stats[m.key], c = $("#mc-" + m.key); if (!c) return;
+    const el = st.finished ? st.elapsed : S.tNow;
+    c.classList.toggle("done", st.finished);
+    c.querySelector('[data-k=cnt]').innerHTML = `${nf(st.done)}<small> / ${nf(S.n)}${st.err ? ` · ${st.err} erro(s)` : ""}</small>`;
+    c.querySelector('[data-k=cost]').textContent = money(st.cost);
+    c.querySelector('[data-k=bar]').style.width = (100 * st.done / Math.max(1, S.n)) + "%";
+    c.querySelector('[data-k=time]').textContent = clock(el);
+    c.querySelector('[data-k=tput]').textContent = el > 0 ? nf(st.done / el, 1) : "–";
+    c.querySelector('[data-k=p50]').textContent = ms(p50(st.lat));
+    c.querySelector('[data-k=out]').textContent = nf(st.out);
+  });
+}
+function updateBoardH() { document.documentElement.style.setProperty("--boardh", ($("#stickyBoard").offsetHeight - 2) + "px"); }
+window.addEventListener("resize", updateBoardH);
+
+/* ---------- linhas de lead ---------- */
+const rowEls = new Map();
+const dirty = new Set();
+let raf = 0;
+function markDirty(id) { dirty.add(id); }
+function scheduleFlush() { if (!raf) raf = requestAnimationFrame(flush); }
+function flush() { raf = 0; renderBoard(); syncRows(); dirty.clear(); }
+
+function fmtVal(q, a) {
+  if (q.type === "noul") return a.value ? "Sim" : "Não";
+  if (q.type === "score") return nf(a.value, 1);
+  return a.value;
+}
+function diverging(id) {
+  const rs = S.models.map(m => S.results[m.key].get(id)).filter(r => r && !r.error);
+  if (rs.length < 2) return [];
+  const out = [];
+  for (const q of S.questions) {
+    const v = rs.map(r => r.answers[q.name]).filter(Boolean); if (v.length < 2) continue;
+    if (q.type === "score") { const x = v.map(a => a.value); if (Math.max(...x) - Math.min(...x) > 1) out.push(q.name); }
+    else if (new Set(v.map(a => a.value)).size > 1) out.push(q.name);
+  }
+  return out;
+}
+const anyLow = id => S.models.some(m => { const r = S.results[m.key].get(id); return r && r.low_confidence; });
+
+function modelCol(m, id, div) {
+  const r = S.results[m.key].get(id);
+  if (!r) return `<div class="mcol" style="--mc:${MCOL[m.key]}"><div class="pill wait"><span class="spin"></span>aguardando…</div></div>`;
+  if (r.error) return `<div class="mcol"><div class="errtxt">Erro: ${esc(r.error)}</div><div class="mfoot"><span>${r.retries || 0} retentativa(s)</span></div></div>`;
+  const pills = S.questions.map(q => {
+    const a = r.answers[q.name]; if (!a) return "";
+    const cls = a.confidence >= 0.85 ? "hi" : a.confidence >= S.threshold ? "mid" : "lo";
+    const sub = q.type === "score" ? (q.levels[Math.round(a.value) - 1] || "") : q.type === "noul" ? `chance de Sim ${nf(a.p * 100, 0)}%` : "";
+    return `<div class="pill ${cls}${div.includes(q.name) ? " diff" : ""}" title="${esc(qLabel(q))}"><div class="pq">${esc(qLabel(q))}</div><div class="pr"><span class="qv">${esc(fmtVal(q, a))}</span><span class="qc num">${nf(a.confidence * 100, 0)}%</span></div>${sub ? `<div class="qs" title="${esc(sub)}">${esc(sub)}</div>` : ""}<i class="cb" style="width:${a.confidence * 100}%"></i></div>`;
+  }).join("");
+  const outTxt = m.key === "jev" ? `<span>saída ${r.out_tokens} tok <span class="free">(grátis)</span></span>` : `<span>saída <b>${r.out_tokens}</b> tok</span>`;
+  return `<div class="mcol" style="--mc:${MCOL[m.key]}">${pills}<div class="mfoot"><span class="t"><b>${ms(r.latency_ms)}</b></span><span><b>${money(r.cost_usd)}</b></span><span>entrada ${r.in_tokens} tok</span>${outTxt}${r.retries ? `<span>${r.retries} retentativa(s)</span>` : ""}</div></div>`;
+}
+function rowHTML(id) {
+  const l = S.leads.get(id), div = diverging(id), low = anyLow(id);
+  const idx = S.order.indexOf(id) + 1;
+  const tags = (div.length ? `<span class="tag">modelos divergem em ${div.length} pergunta${div.length > 1 ? "s" : ""}</span>` : "") + (low ? `<span class="tag rev">revisar · confiança &lt; ${nf(S.threshold * 100, 0)}%</span>` : "");
+  const ctx = (S.ctxFields.length ? S.ctxFields : Object.keys(l).filter(k => k !== "id")).filter(k => k in l);
+  const hasWho = ctx.includes("nome");
+  const used = new Set(hasWho ? ["nome", "empresa", "cargo"] : []);
+  const longs = ctx.filter(k => !used.has(k) && (k === "mensagem" || String(l[k]).length > 80));
+  longs.forEach(k => used.add(k));
+  const meta = ctx.filter(k => !used.has(k) && l[k] !== "").map(k => `<span title="${esc(k)}: ${esc(l[k])}"><i>${esc(k)}</i>${esc(l[k])}</span>`).join("");
+  const who = hasWho ? `<div class="who">${esc(l.nome)}${ctx.includes("empresa") && l.empresa ? ` <small>· ${esc(l.empresa)}</small>` : ""}</div>
+      ${ctx.includes("cargo") && l.cargo ? `<span class="cargo">${esc(l.cargo)}</span>` : ""}` : "";
+  const blocks = longs.map(k => `${k !== "mensagem" || !hasWho ? `<span class="fl2">${esc(k)}</span>` : ""}<div class="msg${l[k] ? "" : " empty"}">${l[k] ? esc(l[k]) : "(vazio)"}</div>`).join("");
+  let raw = "";
+  if (S.expanded.has(id)) {
+    const obj = {}; S.models.forEach(m => { const r = S.results[m.key].get(id); obj[m.label] = r ? (r.error ? { erro: r.error } : { resposta_bruta: r.raw, normalizada: r.answers }) : "aguardando"; });
+    raw = `<div class="rawbox">${esc(JSON.stringify({ lead: l, ...obj }, null, 2))}</div>`;
+  }
+  return { cls: "row lead grid" + (div.length ? " diverge" : ""), html: `
+    <div class="lead"><div class="ltop"><span class="idx">#${idx}</span><span class="lid">${esc(l.id)}</span></div>
+      ${who}${blocks}
+      ${meta ? `<div class="meta">${meta}</div>` : ""}<div class="tags">${tags}</div></div>
+    ${S.models.map(m => modelCol(m, id, div)).join("")}${raw}` };
+}
+function filtered() {
+  if (!S.fDiv && !S.fLow) return S.order;
+  return S.order.filter(id => (!S.fDiv || diverging(id).length) && (!S.fLow || anyLow(id)));
+}
+function visibleIds() {
+  const f = filtered();
+  const end = S.follow ? f.length : Math.min(S.frozenEnd, f.length);
+  return { ids: f.slice(Math.max(0, end - WINDOW), end).reverse(), total: f.length, end };
+}
+let lastEnd = 0;
+function syncRows() {
+  if (!S.models.length) return;
+  const { ids, total, end } = visibleIds();
+  lastEnd = end;
+  const box = $("#rows"), frag = document.createDocumentFragment(), keep = new Set(ids);
+  const filterChanged = S._filterSig !== S.fDiv + "|" + S.fLow;
+  S._filterSig = S.fDiv + "|" + S.fLow;
+  ids.forEach(id => {
+    let el = rowEls.get(id);
+    if (!el) { el = document.createElement("div"); rowEls.set(id, el); el.dataset.id = id; }
+    if (dirty.has(id) || !el.innerHTML || filterChanged) {
+      const r = rowHTML(id); el.className = r.cls; el.innerHTML = r.html;
+    }
+    frag.appendChild(el);
+  });
+  for (const [id] of rowEls) if (!keep.has(id)) rowEls.delete(id);
+  box.replaceChildren(frag);
+  const from = Math.max(0, end - WINDOW) + 1;
+  $("#tinfo").textContent = total ? `mostrando ${from}–${end} de ${nf(total)} ${S.fDiv || S.fLow ? "(filtrado)" : "leads"} · ${S.follow ? "seguindo os mais novos" : "congelado"}` : "aguardando primeiros leads…";
+  $("#btnPrev").disabled = end <= WINDOW;
+  $("#btnNext").disabled = S.follow || end >= total;
+}
+function setFollow(v) {
+  S.follow = v;
+  $("#btnFollow").classList.toggle("on", v); $("#btnFreeze").classList.toggle("on", !v);
+}
+$("#btnFollow").onclick = () => { setFollow(true); scheduleFlush(); };
+$("#btnFreeze").onclick = () => { S.frozenEnd = lastEnd; setFollow(false); scheduleFlush(); };
+$("#btnPrev").onclick = () => { if (S.follow) { S.frozenEnd = lastEnd; setFollow(false); } S.frozenEnd = Math.max(WINDOW, S.frozenEnd - WINDOW); scheduleFlush(); };
+$("#btnNext").onclick = () => { S.frozenEnd = Math.min(filtered().length, S.frozenEnd + WINDOW); scheduleFlush(); };
+$("#fDiv").onchange = e => { S.fDiv = e.target.checked; if (!S.follow) S.frozenEnd = filtered().length; scheduleFlush(); };
+$("#fLow").onchange = e => { S.fLow = e.target.checked; if (!S.follow) S.frozenEnd = filtered().length; scheduleFlush(); };
+$("#rows").addEventListener("click", e => {
+  const row = e.target.closest(".row.lead"); if (!row) return;
+  if (window.getSelection().toString()) return;
+  const id = row.dataset.id;
+  if (S.follow) { S.frozenEnd = lastEnd; setFollow(false); }
+  S.expanded.has(id) ? S.expanded.delete(id) : S.expanded.add(id);
+  markDirty(id); scheduleFlush();
+});
+
+/* ---------- painel final ---------- */
+function bars(title, key, fmt, models) {
+  const vals = models.map(m => m[key]).filter(v => v != null);
+  const max = Math.max(...vals, 1e-12);
+  return `<div><h3>${title}</h3>${models.map(m => `<div class="hb" style="--mc:${MCOL[m.key]}"><span class="lab">${esc(m.label)}</span><span class="trk"><i style="width:${m[key] == null ? 0 : 100 * m[key] / max}%"></i></span><span class="val">${m[key] == null ? "–" : fmt(m[key])}</span></div>`).join("")}</div>`;
+}
+function renderFinal(ev) {
+  const sm = ev.summary, el = $("#final");
+  const ms_ = S.models.map(m => ({ key: m.key, label: m.label, ...sm.models[m.key] }));
+  const acc = S.questions.map(q => ({ q, per: ms_.map(m => m.per_question[q.name]) }));
+  const accModels = ms_.map(m => {
+    const vals = Object.values(m.per_question).filter(p => p.metric === "gabarito" && p.acc != null).map(p => p.acc);
+    return { ...m, accAvg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
+  });
+  const hasGab = accModels.some(m => m.accAvg != null);
+  let h = `<h2>Resultado ${ev.stopped ? "(parcial: execução interrompida)" : ""}${S.mock ? " · SIMULADO" : ""}</h2><div class="cmp">
+    ${bars("Tempo total", "elapsed_s", v => clock(v), ms_)}
+    ${bars("Custo total", "cost_usd", v => money(v), ms_)}
+    ${bars("Latência p50 por lead", "p50_ms", v => ms(v), ms_)}
+    ${hasGab ? bars("Acurácia média (gabarito)", "accAvg", v => nf(v, 1) + "%", accModels) : ""}</div>
+    <table><thead><tr><th>Pergunta</th>${ms_.map(m => `<th style="color:${MCOL[m.key]}">${esc(m.label)}</th>`).join("")}</tr></thead><tbody>`;
+  acc.forEach(({ q, per }) => {
+    h += `<tr><td><b>${esc(qLabel(q))}</b></td>` + per.map(p => {
+      if (p.metric === "gabarito") return `<td>${nf(p.acc, 1)}% <span class="hint">certo${p.mae != null ? ` · erro médio ${nf(p.mae, 2)}` : ""}<br>sem ambíguos ${nf(p.acc_clear, 1)}% · confiança ≥ ${nf(sm.threshold * 100, 0)}%: ${p.acc_high == null ? "–" : nf(p.acc_high, 1) + "%"} · abaixo: ${p.acc_low == null ? "–" : nf(p.acc_low, 1) + "%"} (${nf(p.share_low, 1)}% dos leads)</span></td>`;
+      if (p.metric === "concordancia") return `<td>${nf(p.acc, 1)}% <span class="hint">de concordância com o frontier (sem gabarito)</span></td>`;
+      return `<td class="hint">${sm.reference ? "referência" : "sem gabarito"}</td>`;
+    }).join("") + "</tr>";
+  });
+  h += `<tr><td><b>Tokens</b></td>${ms_.map(m => `<td class="num">entrada ${nf(m.in_tokens)} · saída ${nf(m.out_tokens)}${m.key === "jev" ? " (grátis)" : ` (cobrados ${nf(m.billed_out_tokens)})`}</td>`).join("")}</tr>
+    <tr><td><b>Vazão / erros</b></td>${ms_.map(m => `<td class="num">${m.throughput ?? "–"} leads/s · ${m.n_err} erro(s)</td>`).join("")}</tr></tbody></table>`;
+  if (sm.hybrid) {
+    const hy = sm.hybrid, a = hy.accuracy;
+    h += `<div class="hybrid"><h3>Pipeline híbrido: Jev decide, o frontier revisa só a baixa confiança</h3>
+      <div>${nf(hy.n_low)} de ${nf(hy.n)} leads (${nf(hy.share_low, 1)}%) foram para o frontier.
+      Custo do híbrido <b>${money(hy.cost_hybrid_usd)}</b> · só Jev ${money(hy.cost_jev_usd)} · só frontier ${money(hy.cost_frontier_usd)}.
+      ${a ? `<br>Acurácia (gabarito): Jev ${nf(a.jev, 1)}% · frontier ${nf(a.frontier, 1)}% · <b>híbrido ${nf(a.hybrid, 1)}%</b>.` : ""}</div></div>`;
+  }
+  h += `<div class="runline"><a href="/api/runs/${S.runId}/export.csv"><button>Baixar resultado.csv</button></a><span class="hint">execução ${esc(S.runId)} salva em runs/</span></div>`;
+  el.innerHTML = h; el.style.display = "block";
+}
+
+/* ---------- dados: planilha e colunas ---------- */
+function selectDataset(id) {
+  S.ds = S.datasets.find(d => d.id === id) || null;
+  store.set(localStorage, LS_DS, S.ds ? S.ds.id : null);
+  let f = null;
+  try { f = JSON.parse(store.get(localStorage, LS_FIELDS + id)); } catch (e) {}
+  const cols = S.ds ? S.ds.columns.filter(c => c !== "id") : [];
+  S.fields = Array.isArray(f) ? f.filter(x => cols.includes(x)) : cols;
+  renderData(); renderN(); updateQWarn(); updateRunState(); scheduleEstimate();
+}
+function saveFields() { if (S.ds) store.set(localStorage, LS_FIELDS + S.ds.id, JSON.stringify(S.fields)); }
+function renderData() {
+  const ds = S.ds;
+  $("#dsSel").innerHTML = S.datasets.map(d => `<option value="${esc(d.id)}" ${ds && d.id === ds.id ? "selected" : ""}>${esc(d.name)}${d.example ? " (exemplo)" : ""}</option>`).join("");
+  $("#chipLeads").textContent = ds ? `${ds.name} · ${nf(ds.n_rows)} linhas` : "sem planilha";
+  $("#chipLeads").className = "chip " + (ds ? "ok" : "warn");
+  if (!ds) { $("#cols").innerHTML = ""; $("#pv").innerHTML = ""; $("#dsInfo").textContent = "Suba um CSV ou Excel."; $("#dsum").textContent = ""; return; }
+  $("#dsInfo").textContent = `${nf(ds.n_rows)} linhas · ${ds.columns.length - 1} colunas` + (ds.example
+    ? " · leads fictícios com gabarito, dá para medir acurácia" : " · sem gabarito: o resultado compara o Jev com o LLM");
+  $("#dsum").textContent = `${ds.name} · ${S.fields.length} de ${ds.columns.length - 1} colunas no contexto`;
+  $("#cols").innerHTML = `<button class="fixed" title="Identificador da linha. Não vai para o modelo." disabled>id</button>`
+    + ds.columns.filter(c => c !== "id").map(c => `<button data-col="${esc(c)}" class="${S.fields.includes(c) ? "on" : ""}">${esc(c)}</button>`).join("");
+  const cut = v => { v = String(v ?? ""); return v.length > 90 ? v.slice(0, 90) + "…" : v; };
+  const on = c => c === "id" || S.fields.includes(c);
+  $("#pv").innerHTML = `<table><thead><tr>${ds.columns.map(c => `<th class="${c === "id" ? "" : on(c) ? "on" : "off"}">${esc(c)}</th>`).join("")}</tr></thead><tbody>`
+    + ds.preview.map(r => `<tr>${ds.columns.map(c => `<td class="${on(c) ? "" : "off"}" title="${esc(r[c])}">${esc(cut(r[c]))}</td>`).join("")}</tr>`).join("")
+    + `</tbody></table>`;
+}
+$("#cols").addEventListener("click", e => {
+  const b = e.target.closest("button[data-col]"); if (!b || !S.ds) return;
+  const c = b.dataset.col;
+  S.fields = S.fields.includes(c) ? S.fields.filter(x => x !== c) : S.ds.columns.filter(x => x === c || S.fields.includes(x));
+  saveFields(); renderData(); updateRunState(); scheduleEstimate();
+});
+$("#colAll").onclick = () => { if (!S.ds) return; S.fields = S.ds.columns.filter(c => c !== "id"); saveFields(); renderData(); updateRunState(); scheduleEstimate(); };
+$("#colNone").onclick = () => { S.fields = []; saveFields(); renderData(); updateRunState(); scheduleEstimate(); };
+$("#dsSel").addEventListener("change", e => selectDataset(e.target.value));
+async function uploadFile(file) {
+  if (!file) return;
+  const drop = $("#drop"); drop.classList.add("busy"); $("#upErr").textContent = "";
+  const fd = new FormData(); fd.append("file", file);
+  try {
+    const r = await fetch("/api/datasets", { method: "POST", body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $("#upErr").textContent = typeof d.detail === "string" ? d.detail : "Não consegui ler o arquivo."; return; }
+    S.datasets = S.datasets.concat(d);
+    selectDataset(d.id);
+  } catch (e) { $("#upErr").textContent = "Falha no envio: " + e.message; }
+  finally { drop.classList.remove("busy"); $("#fFile").value = ""; }
+}
+$("#fFile").addEventListener("change", e => uploadFile(e.target.files[0]));
+["dragenter", "dragover"].forEach(t => $("#drop").addEventListener(t, e => { e.preventDefault(); $("#drop").classList.add("over"); }));
+["dragleave", "drop"].forEach(t => $("#drop").addEventListener(t, e => { e.preventDefault(); $("#drop").classList.remove("over"); }));
+$("#drop").addEventListener("drop", e => uploadFile(e.dataTransfer.files[0]));
+
+// As perguntas do exemplo falam de lead e mensagem; numa planilha própria, avisa para reescrever.
+function updateQWarn() {
+  const el = $("#qWarn"); if (!el || !S.cfg) return;
+  const preset = new Set(S.cfg.preset.map(p => p.instructions));
+  const usesPreset = S.qs.some(q => preset.has((q.question || "").trim()));
+  el.textContent = S.ds && !S.ds.example && usesPreset
+    ? "Estas perguntas foram escritas para a planilha de leads do exemplo. Reescreva para as colunas da sua planilha." : "";
+}
+
+/* ---------- chave OpenRouter ---------- */
+function updateKeyUI() {
+  const k = typeKey(), env = S.cfg && S.cfg.has_env_key;
+  $("#keyNote").innerHTML = k
+    ? "Usando a chave digitada. Ela fica só nesta aba do navegador e vai para o servidor local a cada execução, sem ser gravada em disco."
+    : env ? "Usando a chave do <code>.env</code>. Cole outra aqui se quiser trocar."
+    : `Cole sua chave (crie em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>) ou rode no modo simulado.`;
+  $("#chipKey").textContent = k ? "chave digitada na página" : env ? "chave do .env" : "sem chave (modo simulado)";
+  $("#chipKey").className = "chip " + (k || env ? "ok" : "warn");
+}
+$("#fKey").addEventListener("input", () => {
+  store.set(sessionStorage, SS_KEY, typeKey() || null);
+  $("#keyRes").textContent = "";
+  if (typeKey()) $("#fMock").checked = false;
+  updateKeyUI(); updateRunState(); scheduleEstimate();
+});
+$("#btnKeyShow").onclick = () => { const i = $("#fKey"); i.type = i.type === "password" ? "text" : "password"; $("#btnKeyShow").textContent = i.type === "password" ? "mostrar" : "ocultar"; };
+$("#btnKeyTest").onclick = async () => {
+  const el = $("#keyRes"); el.className = "ctxnote"; el.textContent = "testando…";
+  try {
+    const d = await (await fetch("/api/key/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ api_key: typeKey() || null }) })).json();
+    if (!d.ok) { el.className = "ctxnote keybad"; el.textContent = d.error; return; }
+    const rem = d.limit_remaining != null ? ` · limite restante US$ ${nf(d.limit_remaining, 2)}` : "";
+    el.className = "ctxnote keyok"; el.textContent = `Chave válida (${d.source})${d.usage != null ? ` · uso US$ ${nf(d.usage, 4)}` : ""}${rem}`;
+  } catch (e) { el.className = "ctxnote keybad"; el.textContent = "Falha ao testar: " + e.message; }
+};
+
+/* ---------- init ---------- */
+$("#btnRec").onclick = () => { document.body.classList.toggle("rec"); updateBoardH(); };
+async function init() {
+  S.cfg = await (await fetch("/api/config")).json();
+  const c = S.cfg;
+  $("#jevSlug").textContent = c.models.jev.slug;
+  $("#sFront").value = c.models.llm_frontier.slug;
+  $("#fThr").value = c.threshold; $("#fFx").value = c.usd_brl;
+  $("#fKey").value = store.get(sessionStorage, SS_KEY) || "";
+  $("#fMock").checked = !c.has_env_key && !typeKey();
+  updateKeyUI();
+  S.datasets = c.datasets;
+  const want = store.get(localStorage, LS_DS);
+  let ds = c.datasets.find(d => d.id === want);
+  if (!ds && want) ds = await fetch(`/api/datasets/${encodeURIComponent(want)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (ds && !S.datasets.some(d => d.id === ds.id)) S.datasets.push(ds);
+  S.qs = loadQs(); S.qs.forEach(ensureShape);
+  selectDataset((ds || c.datasets[0] || {}).id);
+  renderEditor();
+  fetch("/api/models").then(r => r.json()).then(list => { $("#slugs").innerHTML = list.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join(""); }).catch(() => {});
+  await loadHist();
+  scheduleEstimate();
+  const qp = new URLSearchParams(location.search);
+  if (qp.get("rec") === "1") document.body.classList.add("rec");
+  const rp = qp.get("replay");
+  if (rp) connect(`/api/runs/${rp}/events?replay=true&speed=${qp.get("speed") || 20}`, rp);
+}
+init();
+</script>
+</body>
+</html>
